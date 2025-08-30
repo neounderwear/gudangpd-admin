@@ -23,9 +23,9 @@ const initialFormState: ProductFormData = {
   brandId: '',
   categoryId: '',
   status: 'active',
-  retailPrice: 0,
-  resellerPrice: 0,
-  wholesalePrice: 0,
+  retailPrice: null,
+  resellerPrice: null,
+  wholesalePrice: null,
   discountPrice: null,
   variants: [],
   videoUrl: '',
@@ -301,22 +301,6 @@ export default function ProductForm({
           </div>
           <div>
             <label
-              htmlFor="resellerPrice"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Harga Reseller
-            </label>
-            <input
-              type="number"
-              name="resellerPrice"
-              id="resellerPrice"
-              value={formData.resellerPrice}
-              onChange={handleChange}
-              className="w-full border-gray-300 rounded-lg shadow-sm"
-            />
-          </div>
-          <div>
-            <label
               htmlFor="wholesalePrice"
               className="block text-sm font-medium text-gray-700 mb-1"
             >
@@ -331,6 +315,23 @@ export default function ProductForm({
               className="w-full border-gray-300 rounded-lg shadow-sm"
             />
           </div>
+          <div>
+            <label
+              htmlFor="resellerPrice"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Harga Reseller
+            </label>
+            <input
+              type="number"
+              name="resellerPrice"
+              id="resellerPrice"
+              value={formData.resellerPrice}
+              onChange={handleChange}
+              className="w-full border-gray-300 rounded-lg shadow-sm"
+            />
+          </div>
+          
           <div>
             <label
               htmlFor="discountPrice"
