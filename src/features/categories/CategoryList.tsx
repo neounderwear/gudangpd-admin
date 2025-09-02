@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState,useMemo } from 'react';
 import {
   Plus,
   Pencil,
@@ -6,7 +6,7 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
-} from 'lucide-react'
+} from 'lucide-react';
 import {
   useCategories,
   addCategory,
@@ -14,12 +14,12 @@ import {
   deleteCategory,
   type Category,
   type CategoryFormData,
-} from './useCategories'
-import { useSnackbar } from '@/shared/components/Snackbar'
-import Layout from '@/shared/components/Layout'
-import Modal from '@/shared/components/Modal'
-import ConfirmModal from '@/shared/components/ConfirmModal'
-import CategoryForm from './CategoryForm'
+} from './useCategories';
+import { useSnackbar } from '@/shared/components/Snackbar';
+import Layout from '@/shared/components/Layout';
+import Modal from '@/shared/components/Modal';
+import ConfirmModal from '@/shared/components/ConfirmModal';
+import CategoryForm from './CategoryForm';
 
 const CategoryTableSkeleton = () =>
   [...Array(5)].map((_, i) => (
@@ -40,13 +40,12 @@ const CategoryTableSkeleton = () =>
         </div>
       </td>
     </tr>
-  ))
+  ));
 
 export default function CategoryList() {
-  const { showSnackbar } = useSnackbar()
+  const { showSnackbar } = useSnackbar();
 
-  const [searchTerm, setSearchTerm] = useState('')
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useState('');
 
   const {
     data: categories,
@@ -55,68 +54,70 @@ export default function CategoryList() {
     hasMore,
     nextPage,
     prevPage,
-  } = useCategories(debouncedSearchTerm)
+  } = useCategories('');
 
-  const [isFormOpen, setIsFormOpen] = useState(false)
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
+  const filteredCategories = useMemo(() => {
+    if (!categories) return [];
+    if (!searchTerm) return categories;
+
+    return categories.filter((cat) =>
+      cat.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [categories, searchTerm]);
+
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(
     null,
-  )
-  const [actionLoading, setActionLoading] = useState(false)
-
-  useEffect(() => {
-    const timerId = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm)
-    }, 500)
-    return () => clearTimeout(timerId)
-  }, [searchTerm])
+  );
+  const [actionLoading, setActionLoading] = useState(false);
 
   const handleAddNew = () => {
-    setSelectedCategory(null)
-    setIsFormOpen(true)
-  }
+    setSelectedCategory(null);
+    setIsFormOpen(true);
+  };
 
   const handleEdit = (category: Category) => {
-    setSelectedCategory(category)
-    setIsFormOpen(true)
-  }
+    setSelectedCategory(category);
+    setIsFormOpen(true);
+  };
 
   const handleDeleteRequest = (category: Category) => {
-    setSelectedCategory(category)
-    setIsConfirmOpen(true)
-  }
+    setSelectedCategory(category);
+    setIsConfirmOpen(true);
+  };
 
   const handleDeleteConfirm = async () => {
-    if (!selectedCategory) return
+    if (!selectedCategory) return;
     try {
-      await deleteCategory(selectedCategory.id)
-      showSnackbar('success', 'Kategori berhasil dihapus')
+      await deleteCategory(selectedCategory.id);
+      showSnackbar('success', 'Kategori berhasil dihapus');
     } catch {
-      showSnackbar('error', 'Gagal menghapus kategori')
+      showSnackbar('error', 'Gagal menghapus kategori');
     } finally {
-      setIsConfirmOpen(false)
-      setSelectedCategory(null)
+      setIsConfirmOpen(false);
+      setSelectedCategory(null);
     }
-  }
+  };
 
   const handleSubmit = async (data: CategoryFormData) => {
-    setActionLoading(true)
+    setActionLoading(true);
     try {
       if (selectedCategory) {
-        await updateCategory(selectedCategory.id, data)
-        showSnackbar('success', 'Kategori berhasil diperbarui')
+        await updateCategory(selectedCategory.id, data);
+        showSnackbar('success', 'Kategori berhasil diperbarui');
       } else {
-        await addCategory(data)
-        showSnackbar('success', 'Kategori berhasil ditambahkan')
+        await addCategory(data);
+        showSnackbar('success', 'Kategori berhasil ditambahkan');
       }
-      setIsFormOpen(false)
-      setSelectedCategory(null)
+      setIsFormOpen(false);
+      setSelectedCategory(null);
     } catch {
-      showSnackbar('error', 'Gagal menyimpan kategori')
+      showSnackbar('error', 'Gagal menyimpan kategori');
     } finally {
-      setActionLoading(false)
+      setActionLoading(false);
     }
-  }
+  };
 
   return (
     <Layout>
@@ -163,7 +164,7 @@ export default function CategoryList() {
               {loading ? (
                 <CategoryTableSkeleton />
               ) : (
-                categories.map((cat) => (
+                filteredCategories.map((cat) => (
                   <tr key={cat.id} className="border-b hover:bg-gray-50">
                     <td className="p-4 font-medium text-gray-800">
                       {cat.name}
@@ -197,7 +198,7 @@ export default function CategoryList() {
                   </tr>
                 ))
               )}
-              {!loading && categories.length === 0 && (
+              {!loading && filteredCategories.length === 0 && (
                 <tr>
                   <td colSpan={4} className="p-6 text-center text-gray-500">
                     {searchTerm
@@ -234,8 +235,8 @@ export default function CategoryList() {
       <Modal
         isOpen={isFormOpen}
         onClose={() => {
-          setIsFormOpen(false)
-          setSelectedCategory(null)
+          setIsFormOpen(false);
+          setSelectedCategory(null);
         }}
         title={selectedCategory ? 'Edit Kategori' : 'Tambah Kategori Baru'}
       >
@@ -249,13 +250,13 @@ export default function CategoryList() {
       <ConfirmModal
         isOpen={isConfirmOpen}
         onCancel={() => {
-          setIsConfirmOpen(false)
-          setSelectedCategory(null)
+          setIsConfirmOpen(false);
+          setSelectedCategory(null);
         }}
         onConfirm={handleDeleteConfirm}
         title="Hapus Kategori"
         message={`Yakin ingin menghapus kategori "${selectedCategory?.name}"?`}
       />
     </Layout>
-  )
+  );
 }

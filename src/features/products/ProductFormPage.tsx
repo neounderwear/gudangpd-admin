@@ -1,38 +1,39 @@
-import { useEffect, useState, useRef } from 'react'
-import { useParams, useNavigate, useBlocker } from 'react-router-dom'
-import { useSnackbar } from '@/shared/components/Snackbar'
-import Layout from '@/shared/components/Layout'
-import ConfirmModal from '@/shared/components/ConfirmModal'
-import ProductForm from './ProductForm'
+import { useEffect, useState, useRef } from 'react';
+import { useParams, useNavigate, useBlocker } from 'react-router-dom';
+import { useSnackbar } from '@/shared/components/Snackbar';
+import Layout from '@/shared/components/Layout';
+import ConfirmModal from '@/shared/components/ConfirmModal';
+import ProductForm from './ProductForm';
 import {
   getProductById,
   addProduct,
   updateProduct,
   type ProductFormData,
   type Product,
-} from './useProducts'
-import { ArrowLeft } from 'lucide-react'
-import isEqual from 'lodash.isequal'
+} from './useProducts';
+import { ArrowLeft } from 'lucide-react';
 
 export default function ProductFormPage() {
-  const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const { showSnackbar } = useSnackbar()
-  const [product, setProduct] = useState<Product | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [actionLoading, setActionLoading] = useState(false)
-  const [isDirty, setIsDirty] = useState(false)
-  const initialFormState = useRef<Partial<ProductFormData> | null>(null)
-  const isEditMode = !!id
-  const blocker = useBlocker(isDirty)
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { showSnackbar } = useSnackbar();
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [shouldNavigate, setShouldNavigate] = useState(false);
+
+  const initialFormState = useRef<Partial<ProductFormData> | null>(null);
+  const isEditMode = !!id;
+  const blocker = useBlocker(isDirty);
 
   useEffect(() => {
     if (isEditMode) {
-      setLoading(true)
+      setLoading(true);
       getProductById(id)
         .then((data) => {
           if (data) {
-            setProduct(data)
+            setProduct(data);
             initialFormState.current = {
               name: data.name,
               description: data.description,
@@ -46,13 +47,13 @@ export default function ProductFormPage() {
               variants: data.variants,
               videoUrl: data.videoUrl,
               existingImages: data.images,
-            }
+            };
           } else {
-            showSnackbar('error', 'Produk tidak ditemukan')
-            navigate('/products')
+            showSnackbar('error', 'Produk tidak ditemukan');
+            navigate('/products');
           }
         })
-        .finally(() => setLoading(false))
+        .finally(() => setLoading(false));
     } else {
       initialFormState.current = {
         name: '',
@@ -67,44 +68,50 @@ export default function ProductFormPage() {
         variants: [],
         videoUrl: '',
         existingImages: [],
-      }
+      };
     }
-  }, [id, isEditMode, navigate, showSnackbar])
+  }, [id, isEditMode, navigate, showSnackbar]);
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       if (isDirty) {
-        event.preventDefault()
-        event.returnValue = ''
+        event.preventDefault();
+        event.returnValue = '';
       }
-    }
-    window.addEventListener('beforeunload', handleBeforeUnload)
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isDirty]);
+
+  useEffect(() => {
+    if (shouldNavigate) {
+      navigate('/products');
     }
-  }, [isDirty])
+  }, [shouldNavigate, navigate]);
 
   const handleSubmit = async (data: ProductFormData) => {
-    setActionLoading(true)
+    setActionLoading(true);
     try {
       if (isEditMode && product) {
-        await updateProduct(product.id, data, product.images)
-        showSnackbar('success', 'Produk berhasil diperbarui')
+        await updateProduct(product.id, data, product.images);
+        showSnackbar('success', 'Produk berhasil diperbarui');
       } else {
-        await addProduct(data)
-        showSnackbar('success', 'Produk berhasil ditambahkan')
+        await addProduct(data);
+        showSnackbar('success', 'Produk berhasil ditambahkan');
       }
-      setIsDirty(false)
-      setTimeout(() => navigate('/products'), 50)
+      setIsDirty(false);
+      setShouldNavigate(true);
     } catch (error) {
-      console.error(error)
-      showSnackbar('error', 'Gagal menyimpan produk')
+      console.error(error);
+      showSnackbar('error', 'Gagal menyimpan produk');
     } finally {
-      setActionLoading(false)
+      setActionLoading(false);
     }
-  }
+  };
 
-  const title = isEditMode ? 'Edit Produk' : 'Tambah Produk Baru'
+  const title = isEditMode ? 'Edit Produk' : 'Tambah Produk Baru';
 
   return (
     <Layout>
@@ -126,13 +133,7 @@ export default function ProductFormPage() {
             onSubmit={handleSubmit}
             editData={product}
             loading={actionLoading}
-            onFormChange={(currentData) => {
-              if (!isEqual(initialFormState.current, currentData)) {
-                setIsDirty(true)
-              } else {
-                setIsDirty(false)
-              }
-            }}
+            onFormChange={(dirty: boolean) => setIsDirty(dirty)}
           />
         )}
       </div>
@@ -147,5 +148,5 @@ export default function ProductFormPage() {
         intent="destructive"
       />
     </Layout>
-  )
+  );
 }

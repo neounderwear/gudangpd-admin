@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react';
 import {
   Plus,
   Pencil,
@@ -6,7 +6,7 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
-} from 'lucide-react'
+} from 'lucide-react';
 import {
   useBrands,
   addBrand,
@@ -14,12 +14,12 @@ import {
   deleteBrand,
   type Brand,
   type BrandFormData,
-} from './useBrands'
-import { useSnackbar } from '@/shared/components/Snackbar'
-import Layout from '@/shared/components/Layout'
-import Modal from '@/shared/components/Modal'
-import ConfirmModal from '@/shared/components/ConfirmModal'
-import BrandForm from './BrandForm'
+} from './useBrands';
+import { useSnackbar } from '@/shared/components/Snackbar';
+import Layout from '@/shared/components/Layout';
+import Modal from '@/shared/components/Modal';
+import ConfirmModal from '@/shared/components/ConfirmModal';
+import BrandForm from './BrandForm';
 
 const BrandTableSkeleton = () =>
   [...Array(5)].map((_, i) => (
@@ -43,13 +43,12 @@ const BrandTableSkeleton = () =>
         </div>
       </td>
     </tr>
-  ))
+  ));
 
 export default function BrandList() {
-  const { showSnackbar } = useSnackbar()
+  const { showSnackbar } = useSnackbar();
 
-  const [searchTerm, setSearchTerm] = useState('')
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useState('');
 
   const {
     data: brands,
@@ -58,67 +57,69 @@ export default function BrandList() {
     hasMore,
     nextPage,
     prevPage,
-  } = useBrands(debouncedSearchTerm)
+  } = useBrands('');
 
-  const [isFormOpen, setIsFormOpen] = useState(false)
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
-  const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null)
-  const [actionLoading, setActionLoading] = useState(false)
+  const filteredBrands = useMemo(() => {
+  if (!brands) return [];
+  if (!searchTerm) return brands;
 
-  useEffect(() => {
-    const timerId = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm)
-    }, 500)
-    return () => clearTimeout(timerId)
-  }, [searchTerm])
+  return brands.filter((brand) =>
+    brand.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+}, [brands, searchTerm]);
+
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const handleAddNew = () => {
-    setSelectedBrand(null)
-    setIsFormOpen(true)
-  }
+    setSelectedBrand(null);
+    setIsFormOpen(true);
+  };
 
   const handleEdit = (brand: Brand) => {
-    setSelectedBrand(brand)
-    setIsFormOpen(true)
-  }
+    setSelectedBrand(brand);
+    setIsFormOpen(true);
+  };
 
   const handleDeleteRequest = (brand: Brand) => {
-    setSelectedBrand(brand)
-    setIsConfirmOpen(true)
-  }
+    setSelectedBrand(brand);
+    setIsConfirmOpen(true);
+  };
 
   const handleDeleteConfirm = async () => {
-    if (!selectedBrand) return
+    if (!selectedBrand) return;
     try {
-      await deleteBrand(selectedBrand)
-      showSnackbar('success', 'Brand berhasil dihapus')
+      await deleteBrand(selectedBrand);
+      showSnackbar('success', 'Brand berhasil dihapus');
     } catch {
-      showSnackbar('error', 'Gagal menghapus brand')
+      showSnackbar('error', 'Gagal menghapus brand');
     } finally {
-      setIsConfirmOpen(false)
-      setSelectedBrand(null)
+      setIsConfirmOpen(false);
+      setSelectedBrand(null);
     }
-  }
+  };
 
   const handleSubmit = async (data: BrandFormData) => {
-    setActionLoading(true)
+    setActionLoading(true);
     try {
       if (selectedBrand) {
-        await updateBrand(selectedBrand.id, data, selectedBrand.logoUrl)
-        showSnackbar('success', 'Brand berhasil diperbarui')
+        await updateBrand(selectedBrand.id, data, selectedBrand.logoUrl);
+        showSnackbar('success', 'Brand berhasil diperbarui');
       } else {
-        await addBrand(data)
-        showSnackbar('success', 'Brand berhasil ditambahkan')
+        await addBrand(data);
+        showSnackbar('success', 'Brand berhasil ditambahkan');
       }
-      setIsFormOpen(false)
-      setSelectedBrand(null)
+      setIsFormOpen(false);
+      setSelectedBrand(null);
     } catch (error) {
-      console.error(error)
-      showSnackbar('error', 'Gagal menyimpan brand')
+      console.error(error);
+      showSnackbar('error', 'Gagal menyimpan brand');
     } finally {
-      setActionLoading(false)
+      setActionLoading(false);
     }
-  }
+  };
 
   return (
     <Layout>
@@ -164,7 +165,7 @@ export default function BrandList() {
               {loading ? (
                 <BrandTableSkeleton />
               ) : (
-                brands.map((brand) => (
+                filteredBrands.map((brand) => (
                   <tr key={brand.id} className="border-b hover:bg-gray-50">
                     <td className="p-4">
                       <img
@@ -205,7 +206,7 @@ export default function BrandList() {
                   </tr>
                 ))
               )}
-              {!loading && brands.length === 0 && (
+              {!loading && filteredBrands.length === 0 && (
                 <tr>
                   <td colSpan={5} className="p-6 text-center text-gray-500">
                     {searchTerm
@@ -242,8 +243,8 @@ export default function BrandList() {
       <Modal
         isOpen={isFormOpen}
         onClose={() => {
-          setIsFormOpen(false)
-          setSelectedBrand(null)
+          setIsFormOpen(false);
+          setSelectedBrand(null);
         }}
         title={selectedBrand ? 'Edit Brand' : 'Tambah Brand Baru'}
       >
@@ -257,13 +258,13 @@ export default function BrandList() {
       <ConfirmModal
         isOpen={isConfirmOpen}
         onCancel={() => {
-          setIsConfirmOpen(false)
-          setSelectedBrand(null)
+          setIsConfirmOpen(false);
+          setSelectedBrand(null);
         }}
         onConfirm={handleDeleteConfirm}
         title="Hapus Brand"
         message={`Yakin ingin menghapus brand "${selectedBrand?.name}"?`}
       />
     </Layout>
-  )
+  );
 }

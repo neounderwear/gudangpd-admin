@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react';
 import {
   Plus,
   Pencil,
@@ -7,13 +7,13 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
-} from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useProducts, deleteProduct, type Product } from './useProducts'
-import { useProductOptions } from './useProductOptions'
-import { useSnackbar } from '@/shared/components/Snackbar'
-import Layout from '@/shared/components/Layout'
-import ConfirmModal from '@/shared/components/ConfirmModal'
+} from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useProducts, deleteProduct, type Product } from './useProducts';
+import { useProductOptions } from './useProductOptions';
+import { useSnackbar } from '@/shared/components/Snackbar';
+import Layout from '@/shared/components/Layout';
+import ConfirmModal from '@/shared/components/ConfirmModal';
 
 const ProductTableSkeleton = () =>
   [...Array(5)].map((_, i) => (
@@ -44,14 +44,14 @@ const ProductTableSkeleton = () =>
         </div>
       </td>
     </tr>
-  ))
+  ));
 
 export default function ProductList() {
-  const { showSnackbar } = useSnackbar()
-  const navigate = useNavigate()
+  const { showSnackbar } = useSnackbar();
+  const navigate = useNavigate();
 
-  const [searchTerm, setSearchTerm] = useState('')
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useState('');
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
   const {
     data: products,
@@ -60,41 +60,42 @@ export default function ProductList() {
     hasMore,
     nextPage,
     prevPage,
-  } = useProducts(debouncedSearchTerm)
-  const { brands, categories } = useProductOptions()
+  } = useProducts('');
 
-  const [productToDelete, setProductToDelete] = useState<Product | null>(null)
+  const { brands, categories } = useProductOptions();
 
   const brandMap = useMemo(
     () => new Map(brands.map((b) => [b.id, b.name])),
     [brands],
-  )
+  );
   const categoryMap = useMemo(
     () => new Map(categories.map((c) => [c.id, c.name])),
     [categories],
-  )
+  );
 
-  useEffect(() => {
-    const timerId = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm)
-    }, 500)
-    return () => clearTimeout(timerId)
-  }, [searchTerm])
+  const filteredProducts = useMemo(() => {
+    if (!products) return [];
+    if (!searchTerm) return products;
+
+    return products.filter((product) =>
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
+  }, [products, searchTerm]);
 
   const handleDelete = async () => {
-    if (!productToDelete) return
+    if (!productToDelete) return;
     try {
-      await deleteProduct(productToDelete)
-      showSnackbar('success', 'Produk berhasil dihapus')
+      await deleteProduct(productToDelete);
+      showSnackbar('success', 'Produk berhasil dihapus');
     } catch (error) {
-      showSnackbar('error', 'Gagal menghapus produk')
+      showSnackbar('error', 'Gagal menghapus produk');
     } finally {
-      setProductToDelete(null)
+      setProductToDelete(null);
     }
-  }
+  };
 
   const getTotalStock = (product: Product) => {
-    if (!product.variants || product.variants.length === 0) return 0
+    if (!product.variants || product.variants.length === 0) return 0;
     return product.variants.reduce(
       (total, variant) =>
         total +
@@ -103,8 +104,8 @@ export default function ProductList() {
           0,
         ),
       0,
-    )
-  }
+    );
+  };
 
   return (
     <Layout>
@@ -152,7 +153,7 @@ export default function ProductList() {
               {productsLoading ? (
                 <ProductTableSkeleton />
               ) : (
-                products.map((product) => (
+                filteredProducts.map((product) => (
                   <tr key={product.id} className="border-b hover:bg-gray-50">
                     <td className="p-4">
                       <div className="flex items-center gap-3">
@@ -183,7 +184,11 @@ export default function ProductList() {
                     </td>
                     <td className="p-4">
                       <span
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${product.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                          product.status === 'active'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}
                       >
                         {product.status === 'active' ? 'Aktif' : 'Nonaktif'}
                       </span>
@@ -218,11 +223,11 @@ export default function ProductList() {
                   </tr>
                 ))
               )}
-              {!productsLoading && products.length === 0 && (
+              {!productsLoading && filteredProducts.length === 0 && (
                 <tr>
                   <td colSpan={7} className="p-6 text-center text-gray-500">
-                    {debouncedSearchTerm
-                      ? `Produk dengan nama "${debouncedSearchTerm}" tidak ditemukan.`
+                    {searchTerm
+                      ? `Produk dengan nama "${searchTerm}" tidak ditemukan.`
                       : 'Belum ada produk.'}
                   </td>
                 </tr>
@@ -260,5 +265,5 @@ export default function ProductList() {
         message={`Yakin ingin menghapus produk "${productToDelete?.name}"?`}
       />
     </Layout>
-  )
+  );
 }

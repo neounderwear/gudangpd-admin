@@ -1,20 +1,44 @@
-import { useState, useEffect } from 'react'
-import { useSnackbar } from '@/shared/components/Snackbar'
+import { useState, useEffect } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  rectSwappingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+import { useSnackbar } from '@/shared/components/Snackbar';
 import {
   type Product,
   type ProductFormData,
   type Variant,
   type VariantValue,
-} from './useProducts'
-import { useProductOptions } from './useProductOptions'
-import { Loader2, UploadCloud, X, Plus, Trash2 } from 'lucide-react'
-import isEqual from 'lodash.isequal'
+} from './useProducts';
+import { useProductOptions } from './useProductOptions';
+import { Loader2, UploadCloud, X, Plus, Trash2, GripVertical } from 'lucide-react';
+import isEqual from 'lodash.isequal';
+
+interface ImageItem {
+  id: string;
+  content: string | File;
+  type: 'existing' | 'new';
+}
 
 interface ProductFormProps {
-  editData?: Product | null
-  onSubmit: (data: ProductFormData) => Promise<void>
-  loading: boolean
-  onFormChange: (isDirty: boolean) => void
+  editData?: Product | null;
+  onSubmit: (data: ProductFormData) => Promise<void>;
+  loading: boolean;
+  onFormChange: (isDirty: boolean) => void;
 }
 
 const initialFormState: ProductFormData = {
@@ -31,7 +55,51 @@ const initialFormState: ProductFormData = {
   videoUrl: '',
   newImages: [],
   existingImages: [],
+};
+
+function SortableImageItem({ item, onRemove }: { item: ImageItem, onRemove: (id: string) => void }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="relative group">
+      <img
+        src={
+          item.type === 'new'
+            ? URL.createObjectURL(item.content as File)
+            : (item.content as string)
+        }
+        alt="Product"
+        className="h-24 w-24 object-cover rounded-md shadow-sm"
+      />
+      <button
+        type="button"
+        onClick={() => onRemove(item.id)}
+        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 transition z-10"
+      >
+        <X size={14} />
+      </button>
+      <div
+        {...attributes}
+        {...listeners}
+        className="absolute top-0 left-0 p-1 bg-black/30 rounded-br-md rounded-tl-md cursor-grab group-hover:opacity-100 opacity-0 transition-opacity"
+      >
+        <GripVertical size={16} className="text-white/70" />
+      </div>
+    </div>
+  );
 }
+
 
 export default function ProductForm({
   editData,
@@ -39,11 +107,17 @@ export default function ProductForm({
   loading,
   onFormChange,
 }: ProductFormProps) {
-  const { showSnackbar } = useSnackbar()
-  const { brands, categories } = useProductOptions()
-  const [formData, setFormData] = useState<ProductFormData>(initialFormState)
-  const [initialData, setInitialData] =
-    useState<ProductFormData>(initialFormState)
+  const { showSnackbar } = useSnackbar();
+  const { brands, categories } = useProductOptions();
+  const [formData, setFormData] = useState<ProductFormData>(initialFormState);
+  const [initialData, setInitialData] = useState<ProductFormData>(initialFormState);
+  const [imageList, setImageList] = useState<ImageItem[]>([]);
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     if (editData) {
@@ -61,118 +135,149 @@ export default function ProductForm({
         videoUrl: editData.videoUrl || '',
         newImages: [],
         existingImages: editData.images || [],
-      }
-      setFormData(data)
-      setInitialData(data)
+      };
+      setFormData(data);
+      setInitialData(data);
+
+      const initialImages = (editData.images || []).map((url: string, index: number) => ({
+        id: `existing-${index}-${url}`,
+        content: url,
+        type: 'existing' as const,
+      }));
+      setImageList(initialImages);
     } else {
-      setFormData(initialFormState)
-      setInitialData(initialFormState)
+      setFormData(initialFormState);
+      setInitialData(initialFormState);
+      setImageList([]);
     }
-  }, [editData])
+  }, [editData]);
 
   useEffect(() => {
-    onFormChange(!isEqual(initialData, formData))
-  }, [formData, initialData, onFormChange])
+    const currentExistingImages = imageList
+      .filter((item) => item.type === 'existing')
+      .map((item) => item.content as string);
+    const hasImageOrderChanged = !isEqual(initialData.existingImages, currentExistingImages);
+    const formDataWithoutImages = { ...formData, newImages: [], existingImages: [] };
+    const initialDataWithoutImages = { ...initialData, newImages: [], existingImages: [] };
+    const isFormDataDirty = !isEqual(formDataWithoutImages, initialDataWithoutImages);
+    const areNewImagesPresent = imageList.some((item) => item.type === 'new');
+    const haveExistingImagesBeenRemoved = initialData.existingImages.length > currentExistingImages.length;
+    onFormChange(isFormDataDirty || hasImageOrderChanged || areNewImagesPresent || haveExistingImagesBeenRemoved);
+  }, [formData, initialData, imageList, onFormChange]);
 
-  const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >,
-  ) => {
-    const { name, value, type } = e.target
-    const isNumber = type === 'number'
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setImageList((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
 
-    if (name === 'discountPrice' && value === '') {
-      setFormData((prev) => ({ ...prev, discountPrice: null }))
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      const newImageItems: ImageItem[] = files.map((file, index) => ({
+        id: `new-${Date.now()}-${index}`,
+        content: file,
+        type: 'new',
+      }));
+      setImageList((prev) => [...prev, ...newImageItems]);
+    }
+  };
+
+  const removeImage = (id: string) => {
+    setImageList((prev) => prev.filter((image) => image.id !== id));
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    const isNumber = type === 'number';
+
+    if ((name === 'discountPrice' || name === 'retailPrice' || name === 'resellerPrice' || name === 'wholesalePrice') && value === '') {
+      setFormData((prev) => ({ ...prev, [name]: null }));
     } else {
       setFormData((prev) => ({
         ...prev,
         [name]: isNumber ? Number(value) : value,
-      }))
+      }));
     }
-  }
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const files = Array.from(e.target.files)
-      setFormData((prev) => ({
-        ...prev,
-        newImages: [...prev.newImages, ...files],
-      }))
-    }
-  }
-
-  const removeImage = (index: number, type: 'new' | 'existing') => {
-    if (type === 'new') {
-      setFormData((prev) => ({
-        ...prev,
-        newImages: prev.newImages.filter((_: File, i: number) => i !== index),
-      }))
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        existingImages: prev.existingImages.filter(
-          (_: string, i: number) => i !== index,
-        ),
-      }))
-    }
-  }
+  };
 
   const addVariant = () => {
     setFormData((prev) => ({
       ...prev,
       variants: [...prev.variants, { type: '', values: [] }],
-    }))
-  }
+    }));
+  };
+
   const removeVariant = (index: number) => {
     setFormData((prev) => ({
       ...prev,
       variants: prev.variants.filter((_: Variant, i: number) => i !== index),
-    }))
-  }
+    }));
+  };
+
   const updateVariant = (index: number, field: keyof Variant, value: any) => {
-    const newVariants = [...formData.variants]
-    newVariants[index] = { ...newVariants[index], [field]: value }
-    setFormData((prev) => ({ ...prev, variants: newVariants }))
-  }
+    const newVariants = [...formData.variants];
+    newVariants[index] = { ...newVariants[index], [field]: value };
+    setFormData((prev) => ({ ...prev, variants: newVariants }));
+  };
+
   const addVariantValue = (variantIndex: number) => {
-    const newVariants = [...formData.variants]
-    newVariants[variantIndex].values.push({ value: '', sku: '', stock: 0 })
-    setFormData((prev) => ({ ...prev, variants: newVariants }))
-  }
+    const newVariants = [...formData.variants];
+    newVariants[variantIndex].values.push({ value: '', sku: '', stock: 0 });
+    setFormData((prev) => ({ ...prev, variants: newVariants }));
+  };
+
   const removeVariantValue = (variantIndex: number, valueIndex: number) => {
-    const newVariants = [...formData.variants]
+    const newVariants = [...formData.variants];
     newVariants[variantIndex].values = newVariants[variantIndex].values.filter(
       (_: VariantValue, i: number) => i !== valueIndex,
-    )
-    setFormData((prev) => ({ ...prev, variants: newVariants }))
-  }
+    );
+    setFormData((prev) => ({ ...prev, variants: newVariants }));
+  };
+
   const updateVariantValue = (
     variantIndex: number,
     valueIndex: number,
     field: string,
     value: any,
   ) => {
-    const newVariants = [...formData.variants]
+    const newVariants = [...formData.variants];
     newVariants[variantIndex].values[valueIndex] = {
       ...newVariants[variantIndex].values[valueIndex],
       [field]: value,
-    }
-    setFormData((prev) => ({ ...prev, variants: newVariants }))
-  }
-
+    };
+    setFormData((prev) => ({ ...prev, variants: newVariants }));
+  };
+  
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!formData.name || !formData.brandId || !formData.categoryId) {
-      showSnackbar('error', 'Nama, Brand, dan Kategori wajib diisi.')
-      return
+      showSnackbar('error', 'Nama, Brand, dan Kategori wajib diisi.');
+      return;
     }
-    if (formData.existingImages.length + formData.newImages.length === 0) {
-      showSnackbar('error', 'Minimal 1 gambar produk wajib diupload.')
-      return
+    if (imageList.length === 0) {
+      showSnackbar('error', 'Minimal 1 gambar produk wajib diupload.');
+      return;
     }
-    await onSubmit(formData)
-  }
+
+    const finalExistingImages = imageList
+      .filter((item) => item.type === 'existing')
+      .map((item) => item.content as string);
+    const finalNewImages = imageList
+      .filter((item) => item.type === 'new')
+      .map((item) => item.content as File);
+
+    await onSubmit({
+      ...formData,
+      existingImages: finalExistingImages,
+      newImages: finalNewImages,
+    });
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -295,7 +400,7 @@ export default function ProductForm({
               type="number"
               name="wholesalePrice"
               id="wholesalePrice"
-              value={formData.wholesalePrice}
+              value={formData.wholesalePrice ?? ''}
               onChange={handleChange}
               className="w-full border-gray-300 rounded-lg shadow-sm"
             />
@@ -311,7 +416,7 @@ export default function ProductForm({
               type="number"
               name="resellerPrice"
               id="resellerPrice"
-              value={formData.resellerPrice}
+              value={formData.resellerPrice ?? ''}
               onChange={handleChange}
               className="w-full border-gray-300 rounded-lg shadow-sm"
             />
@@ -327,7 +432,7 @@ export default function ProductForm({
               type="number"
               name="retailPrice"
               id="retailPrice"
-              value={formData.retailPrice}
+              value={formData.retailPrice ?? ''}
               onChange={handleChange}
               className="w-full border-gray-300 rounded-lg shadow-sm"
             />
@@ -356,64 +461,40 @@ export default function ProductForm({
         <legend className="px-2 font-semibold">Media</legend>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Gambar Produk
+            Gambar Produk (geser untuk mengatur urutan)
           </label>
-          <div className="flex flex-wrap gap-4 mt-2">
-            {formData.existingImages.map((url: string, i: number) => (
-              <div key={`existing-${i}`} className="relative">
-                <img
-                  src={url}
-                  alt="Existing"
-                  className="h-24 w-24 object-cover rounded-md"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeImage(i, 'existing')}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 transition"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-            {formData.newImages.map((file: File, i: number) => (
-              <div key={`new-${i}`} className="relative">
-                <img
-                  src={URL.createObjectURL(file)}
-                  alt="Preview"
-                  className="h-24 w-24 object-cover rounded-md"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeImage(i, 'new')}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 transition"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-            <label
-              htmlFor="image-upload"
-              className="cursor-pointer h-24 w-24 flex flex-col items-center justify-center border-2 border-dashed rounded-md text-gray-400 hover:text-brand hover:border-brand transition"
-            >
-              <UploadCloud size={32} />
-              <span className="text-xs mt-1 font-semibold">Tambah Gambar</span>
-            </label>
-            <input
-              id="image-upload"
-              name="image-upload"
-              type="file"
-              multiple
-              className="sr-only"
-              onChange={handleImageChange}
-              accept="image/*"
-            />
-          </div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="flex flex-wrap items-center gap-4 mt-2">
+              <SortableContext items={imageList} strategy={rectSwappingStrategy}>
+                {imageList.map((item) => (
+                  <SortableImageItem key={item.id} item={item} onRemove={removeImage} />
+                ))}
+              </SortableContext>
+
+              <label
+                htmlFor="image-upload"
+                className="cursor-pointer h-24 w-24 flex flex-col items-center justify-center border-2 border-dashed rounded-md text-gray-400 hover:text-brand hover:border-brand transition"
+              >
+                <UploadCloud size={32} />
+                <span className="text-xs mt-1 font-semibold">Tambah Gambar</span>
+              </label>
+              <input
+                id="image-upload"
+                type="file"
+                multiple
+                className="sr-only"
+                onChange={handleImageChange}
+                accept="image/*"
+              />
+            </div>
+          </DndContext>
         </div>
         <div className="mt-4">
-          <label
-            htmlFor="videoUrl"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
+          <label htmlFor="videoUrl" className="block text-sm font-medium text-gray-700 mb-1">
             URL Video (YouTube)
           </label>
           <input
@@ -527,5 +608,5 @@ export default function ProductForm({
         </button>
       </div>
     </form>
-  )
+  );
 }
