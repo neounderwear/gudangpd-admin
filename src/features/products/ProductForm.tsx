@@ -283,22 +283,7 @@ export default function ProductForm({
       <fieldset className="space-y-4 p-4 border rounded-lg">
         <legend className="px-2 font-semibold">Harga</legend>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <label
-              htmlFor="retailPrice"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Harga Retail
-            </label>
-            <input
-              type="number"
-              name="retailPrice"
-              id="retailPrice"
-              value={formData.retailPrice}
-              onChange={handleChange}
-              className="w-full border-gray-300 rounded-lg shadow-sm"
-            />
-          </div>
+          
           <div>
             <label
               htmlFor="wholesalePrice"
@@ -331,13 +316,29 @@ export default function ProductForm({
               className="w-full border-gray-300 rounded-lg shadow-sm"
             />
           </div>
+          <div>
+            <label
+              htmlFor="retailPrice"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Harga Marketplace
+            </label>
+            <input
+              type="number"
+              name="retailPrice"
+              id="retailPrice"
+              value={formData.retailPrice}
+              onChange={handleChange}
+              className="w-full border-gray-300 rounded-lg shadow-sm"
+            />
+          </div>
           
           <div>
             <label
               htmlFor="discountPrice"
               className="block text-sm font-medium text-gray-700 mb-1"
             >
-              Harga Diskon
+              Harga Retail
             </label>
             <input
               type="number"
